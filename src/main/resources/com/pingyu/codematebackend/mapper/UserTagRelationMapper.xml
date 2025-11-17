@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pingyu.codematebackend.mapper.UserTagRelationMapper">
+
+    <resultMap id="BaseResultMap" type="com.pingyu.codematebackend.model.UserTagRelation">
+            <id property="id" column="id" />
+            <result property="userid" column="userId" />
+            <result property="tagid" column="tagId" />
+            <result property="createtime" column="createTime" />
+            <result property="updatetime" column="updateTime" />
+            <result property="isdelete" column="isDelete" />
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,userId,tagId,createTime,updateTime,isDelete
+    </sql>
+</mapper>

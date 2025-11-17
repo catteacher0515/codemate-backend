@@ -1,18 +1,52 @@
 spring:
-  datasource: # 1. 必需：数据库连接配置
-    driver-class-name: com.mysql.cj.jdbc.Driver # 使用新驱动
-    # 替换为你本地开发库的地址、库名、和推荐参数
-
+  datasource: # 数据库连接配置
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # 你的开发库地址
     url: jdbc:mysql://localhost:3306/codemate_backend_db_dev
+    # 你的开发库用户名
+    username: codemate_backend_db_dev
+    # 你的开发库密码
+    password: 112233665qw
 
-    username: codemate_backend_db_dev # 使用专用、非 root 用户
+  data:
+    redis:
+      host: localhost  # 告诉 Spring Boot：Redis 服务器就在本机
+      port: 6379       # 告诉 Spring Boot：Redis 正 6379 端口上“监听”
+      # (如果你的 Redis 设置了密码，才需要加这行)
+      # password: your-password
 
-    password: 112233665qw # 使用强密码 (注意版本控制安全)
+  # 【【【 案卷 #12：Redisson 配置 】】】
+  redisson:
+    config: |
+      singleServerConfig:
+        address: "redis://localhost:6379"
+        database: 0
 
-  flyway: # 2. (如果使用 Flyway) 推荐配置
+  flyway: # Flyway 配置
     baseline-on-migrate: true # 允许在已有表上初始化
 
-# logging: # 3. (推荐) 配置开发时的日志级别
+mybatis-plus:
+  # 告诉 Mybatis-Plus 去哪里找 XML 文件
+  # classpath: 指的是 src/main/resources/ 目录
+  mapper-locations: classpath:mapper/*.xml
+
+# logging: # (推荐) 配置开发时的日志级别, 你可以取消注释来开启
 #   level:
-#     com.pingyu.usercenterbackend: DEBUG # 将你自己代码的日志设为 DEBUG
-#     org.mybatis: DEBUG # 按需开启 Mybatis SQL 日志
+#     # 将你自己代码的日志设为 DEBUG
+#     com.pingyu.codematebackend: DEBUG
+#     # 按需开启 Mybatis SQL 日志
+#     org.mybatis: DEBUG
+
+# 阿里云 OSS 配置 (已添加到 .gitignore)
+aliyun:
+  oss:
+    # 你的 OSS Endpoint (外网)
+    endpoint: oss-cn-beijing.aliyuncs.com
+    # 你的 RAM 用户 AccessKey ID
+    access-key-id: LTAI5tQSUBT7TBf2Em6jtWCA
+    # 你的 RAM 用户 AccessKey Secret
+    access-key-secret: P8xpOPCRMznPElFsUFYOmvrV8iyQae
+    # 你的 Bucket 名称
+    bucket-name: pingyu-storage
+
+# 在 application.yml (或 application-dev.yml) 中添加

@@ -1,0 +1,267 @@
+### =====================================
+### CodeMate - 用户服务 API 测试
+### =====================================
+
+# --- 环境变量 ---
+# 定义你的本地开发环境主机地址
+# (确保端口 8080 和 /api 基础路径与你的 application.yml 配置一致)
+@host = http://localhost:8080/api
+
+
+### =====================================
+### 核心功能：按标签搜索用户
+### =====================================
+
+### 1. 测试：按多个标签搜索 (预期：返回用户 A)
+# 模拟前端请求，查找同时拥有 "Java" 和 "大一" 的用户
+# (这是我们之前计划的测试)
+GET {{host}}/user/search/tags?tagNames=Java&tagNames=大一
+Accept: application/json
+
+
+### 2. 测试：按单个标签搜索 (预期：返回用户 A 和 B)
+# 查找拥有 "Java" 的用户
+GET {{host}}/user/search/tags?tagNames=Java
+Accept: application/json
+
+
+### 3. 测试：按不存在的标签搜索 (预期：返回空列表 [])
+# 查找拥有 "Python" 的用户 (假设数据库里没有这个标签)
+GET {{host}}/user/search/tags?tagNames=Python
+Accept: application/json
+
+
+### 4. 测试：空标签列表 (预期：返回空列表 [])
+# 模拟不传入任何 tagNames 参数
+# (这取决于你的 Controller 如何处理 required = false)
+GET {{host}}/user/search/tags
+Accept: application/json
+
+### 案子三：文件上传 点火测试 (V5 - “真正最终版”)
+
+POST http://localhost:8080/api/file/upload
+Accept: application/json
+Content-Type: multipart/form-data; boundary=WebAppBoundary
+
+--WebAppBoundary
+Content-Disposition: form-data; name="file"; filename="my-avatar.jpg"
+Content-Type: image/jpeg
+
+< C:\dev_workspace\avatar.jpg
+--WebAppBoundary--
+
+
+### =====================================
+### “案子六”：头像持久化 API 点火测试
+### =====================================
+
+# 【【【关键：你必须修改这里的 URL！！！】】】
+#
+# 1. 运行一次“案子三” (上面的文件上传)，获取一个【【新】】的阿里云 URL
+# 2. 把那个【【新】】的 URL 粘贴到下面的 "avatarUrl" 字段里！
+# 3. 把 "userId" 改成你数据库里【【真实存在】】的用户 ID！
+
+PUT http://localhost:8080/api/user/update/avatar
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "avatarUrl": "https://pingyu-storage.oss-cn-beijing.aliyuncs.com/codemate/avatars/2025/11/01/ded2b75e-e6e5-45a2-b647-72253a76d098.jpg"
+}
+
+### =====================================
+### “案子八”：获取真实用户 API 点火测试
+### =====================================
+
+# 目标：获取 ID 为 1 的用户
+# (确保 ID=1 在你的数据库中真实存在)
+#
+# 预期：
+# 1. 收到 HTTP 200 OK
+# 2. 收到一个 JSON 对象，代表 ID=1 的用户
+# 3. 并且！userPassword 字段必须是 null (已脱敏)
+
+GET http://localhost:8080/api/user/1
+Accept: application/json
+
+### =====================================
+### “案子九”：获取真实用户列表 API 点火测试
+### =====================================
+
+# 目标：获取数据库中“所有”的用户
+#
+# 预期：
+# 1. 收到 HTTP 200 OK
+# 2. 收到一个 JSON 数组 (List)，包含所有用户
+# 3. 并且！所有用户的 userPassword 字段必须是 null (已脱敏)
+
+GET http://localhost:8080/api/user/list
+Accept: application/json
+
+### =====================================
+### “案子 15.1”：(“新手”爬虫) 点火测试
+### =====================================
+
+# 目标：抓取“豆瓣读书 Top 250”
+#
+# 预期：
+# 1. 收到 HTTP 200 OK
+# 2. 收到一个 JSON 数组 (List)，包含 250 (或 25) 个“书名”
+
+GET http://localhost:8080/api/crawl/douban-top250
+Accept: application/json
+
+### =====================================
+### “案子 15.2”：(“分页”爬虫) 点火测试
+### =====================================
+
+GET http://localhost:8080/api/crawl/douban-top250
+Accept: application/json
+
+### =====================================
+### “案子 15.3”：(“困难”爬虫) 点火测试
+### =====================================
+
+# 目标：抓取“我们自己”的“动态”前端页面
+# (确保你的“前端”和“后端”都在“运行”！)
+#
+# 预期：
+# 1. 收到 HTTP 200 OK
+# 2. 收到一个 JSON 数组 (List)，包含：
+#    ["萍雨 (id: 1)", "极简主义 (id: 2)", "用户C (id: 3)"]
+
+GET http://localhost:8080/api/crawl/crawl-dynamic
+Accept: application/json
+
+
+### 测试登录：(修正版)
+POST {{host}}/user/login
+Accept: application/json
+# 【关键修复】Content-Type 这一行必须“干净”，不能有任何多余的字符
+Content-Type: application/json
+
+{
+  "userAccount": "userA",
+  "userPassword": "123456"
+}
+
+
+### 【22号案-验证 A】用户 D - 成功注册
+# 预期结果：HTTP 200 OK，并返回新用户的 ID (例如 "data": 4)
+POST {{host}}/user/register
+Content-Type: application/json
+
+{
+  "userAccount": "userD",
+  "userPassword": "12345678",
+  "checkPassword": "12345678"
+}
+
+### 【22号案-验证 B】用户 E - 失败（两次密码不一致）
+# 预期结果：HTTP 500 错误，提示 "两次输入的密码不一致"
+POST {{host}}/user/register
+Content-Type: application/json
+
+{
+  "userAccount": "userE",
+  "userPassword": "12345678",
+  "checkPassword": "87654321"
+}
+
+### 【22号案-验证 C】用户 D - 失败（账号已存在）
+# 【注意】此测试必须在“验证 A”成功之后运行！
+# 预期结果：HTTP 500 错误，提示 "该账号已被注册"
+POST {{host}}/user/register
+Content-Type: application/json
+
+{
+  "userAccount": "userD",
+  "userPassword": "12345678",
+  "checkPassword": "12345678"
+}
+
+### 【22号案-验证 D】用户 F - 失败（密码太短）
+# 预期结果：HTTP 500 错误，提示 "密码长度不能小于 8 位"
+POST {{host}}/user/register
+Content-Type: application/json
+
+{
+  "userAccount": "userF",
+  "userPassword": "123",
+  "checkPassword": "123"
+}
+
+### 【【【 案卷 #3：性能测试 - 方案 C 】】】
+# (点击这个 POST 旁边的“绿色箭头”来“开火”)
+POST http://localhost:8080/api/user/import-test
+Content-Type: application/json
+
+# (这个请求不需要 Body，但 Content-Type 还是加上)
+
+
+### 创建队伍前的登录
+POST {{host}}/user/register
+Content-Type: application/json
+
+{
+  "userAccount": "maomi",
+  "userPassword": "12345678",
+  "checkPassword": "12345678"
+}
+
+
+### 【【【 案卷 #16：测试“创建队伍” 】】】
+# (注意：你必须先“登录”一次，
+#  这样你的 IDEA HTTP 客户端才能“携带” Session Cookie)
+POST http://localhost:8080/api/team/create
+Content-Type: application/json
+
+{
+    "name": "萍雨侦探事务所",
+    "description": "我们专治 BUG 案",
+    "maxNum": 5,
+    "expireTime": "2026-01-01T10:00:00",
+    "status": 0,
+    "password": null,
+    "tags": ["Java", "Vue"]
+}
+
+### 【【【 1. 身份认证 (先开火) 】】】
+# (用你“注册成功”的账号密码替换)
+POST http://localhost:8080/api/user/login
+Content-Type: application/json
+
+{
+  "userAccount": "maomi",
+  "userPassword": "12345678"
+}
+
+### (这个 "###" 分隔符是必须的)
+
+### 【【【 2. 业务测试 (后开火) 】】】
+POST http://localhost:8080/api/team/create
+Content-Type: application/json
+
+{
+  "name": "萍雨侦探事务所",
+  "description": "我们专治 BUG 案",
+  "maxNum": 5,
+  "expireTime": "2026-01-01T10:00:00",
+  "status": 0,
+  "password": null
+}
+
+### 【【【 案卷 #16.2：测试“创建队伍” (SOP 4 版) 】】】
+# (确保你已“登录”)
+POST http://localhost:8080/api/team/create
+Content-Type: application/json
+
+{
+"name": "萍雨侦探事务所 v2",
+"description": "我们专治 BUG 案 (SOP 4)",
+"maxNum": 5,
+"expireTime": "2026-01-01T10:00:00",
+"status": 0,
+"password": null,
+"tags": ["Java", "Vue"]
+}

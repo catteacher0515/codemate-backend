@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.pingyu.codematebackend.mapper.UserMapper">
+
+    <resultMap id="BaseResultMap" type="com.pingyu.codematebackend.model.User">
+        <id property="id" column="id" jdbcType="BIGINT"/>
+        <result property="username" column="username" jdbcType="VARCHAR"/>
+        <result property="userAccount" column="userAccount" jdbcType="VARCHAR"/>
+        <result property="avatarUrl" column="avatarUrl" jdbcType="VARCHAR"/>
+        <result property="gender" column="gender" jdbcType="TINYINT"/>
+
+        <result property="phone" column="phone" jdbcType="VARCHAR"/>
+        <result property="email" column="email" jdbcType="VARCHAR"/>
+        <result property="userStatus" column="userStatus" jdbcType="TINYINT"/>
+        <result property="userRole" column="userRole" jdbcType="INTEGER"/>
+        <result property="planetCode" column="planetCode" jdbcType="VARCHAR"/>
+        <result property="createTime" column="createTime" jdbcType="TIMESTAMP"/>
+        <result property="updateTime" column="updateTime" jdbcType="TIMESTAMP"/>
+
+        <result property="isDelete" column="isDelete" jdbcType="TINYINT"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id,username,userAccount,avatarUrl,gender,phone,email,userStatus,userRole,planetCode,createTime,updateTime,isDelete
+    </sql>
+
+    <select id="findUsersByAllTags" resultMap="BaseResultMap">
+        select
+        u.id,u.username,u.userAccount,u.avatarUrl,u.gender,u.phone,u.email,u.userStatus,u.userRole,u.planetCode,u.createTime,u.updateTime
+        from
+        user u join
+        user_tag_relation utr on u.id = utr.userId join
+        tag t on utr.tagId = t.id
+        where
+        u.isDelete = 0
+        and utr.isDelete = 0
+        and t.isDelete = 0
+        and t.tagName in
+        <foreach item="tagName" collection="tagNameList" open="(" separator="," close=")">
+            #{tagName}
+        </foreach>
+        group by
+        u.id
+        having
+        count(distinct t.id) = #{listSize}
+    </select>
+
+</mapper>
