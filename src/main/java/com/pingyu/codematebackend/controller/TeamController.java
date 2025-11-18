@@ -4,6 +4,7 @@ package com.pingyu.codematebackend.controller;
 import com.pingyu.codematebackend.common.BaseResponse;
 import com.pingyu.codematebackend.common.ErrorCode;
 import com.pingyu.codematebackend.dto.TeamCreateDTO;
+import com.pingyu.codematebackend.dto.TeamSearchDTO;
 import com.pingyu.codematebackend.dto.TeamVO;
 import com.pingyu.codematebackend.exception.BusinessException; // <-- [修复] 导入异常
 import com.pingyu.codematebackend.model.User;
@@ -13,6 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 /**
  * 【【【 案卷 #16：队伍接口 (前台) 】】】
@@ -25,6 +27,35 @@ public class TeamController {
     // 【【 1. 注入“经理” 】】
     @Resource
     private TeamService teamService;
+
+    /**
+     * 【【【 案卷 #18：SOP (搜索/分页) 】】】
+     * (V3.x 裁决：使用 POST + DTO 来处理复杂搜索)
+     */
+    @PostMapping("/list/page")
+    @Operation(summary = "搜索队伍 (分页)")
+    public BaseResponse<Page<TeamVO>> searchTeams(
+
+            // 1. (接收) 搜索合约
+            @RequestBody TeamSearchDTO teamSearchDTO,
+            HttpSession session
+    ) {
+        // 2. (校验)
+        if (teamSearchDTO == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        User loginUser = (User) session.getAttribute("loginUser");
+        if (loginUser == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGGED_IN);
+        }
+
+        // 3. (委托) 呼叫“经理”(Service)
+        // (我们将在下一步实现这个 Service 方法)
+        Page<TeamVO> teamPage = teamService.searchTeams(teamSearchDTO, loginUser);
+
+        // 4. (返回)
+        return BaseResponse.success(teamPage);
+    }
 
     /**
      * 【【 案卷 #17：SOP (获取队伍详情) 】】】

@@ -1,11 +1,13 @@
 package com.pingyu.codematebackend.service;
 
 import com.pingyu.codematebackend.dto.TeamCreateDTO;
+import com.pingyu.codematebackend.dto.TeamSearchDTO;
 import com.pingyu.codematebackend.dto.TeamVO;
 import com.pingyu.codematebackend.model.Team;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.pingyu.codematebackend.model.User;
 import jakarta.servlet.http.HttpServletRequest;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 /**
 * @author 花萍雨
@@ -23,4 +25,14 @@ public interface TeamService extends IService<Team> {
      * @return TeamVO 或 null
      */
     TeamVO getTeamDetails(long teamId, User loginUser);
+
+    /**
+     * 【【【 案卷 #18：SOP (搜索/分页) 】】】
+     * V3.x 聚合搜索
+     *
+     * @param teamSearchDTO 搜索合约 (包含分页)
+     * @param loginUser     当前登录用户
+     * @return 聚合后的 TeamVO 分页
+     */
+    Page<TeamVO> searchTeams(TeamSearchDTO teamSearchDTO, User loginUser);
 }

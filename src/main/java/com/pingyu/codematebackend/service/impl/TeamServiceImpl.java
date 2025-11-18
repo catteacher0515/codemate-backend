@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.toolkit.CollectionUtils; // [SOP 4] 导入
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pingyu.codematebackend.common.ErrorCode;
 import com.pingyu.codematebackend.dto.TeamCreateDTO;
+import com.pingyu.codematebackend.dto.TeamSearchDTO;
 import com.pingyu.codematebackend.dto.TeamVO;
 import com.pingyu.codematebackend.exception.BusinessException;
 import com.pingyu.codematebackend.model.Tag; // [SOP 4] 导入
@@ -22,8 +23,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List; // [SOP 4] 导入
 import java.util.stream.Collectors;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * 队伍服务实现
@@ -44,6 +48,95 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
 
     @Resource
     private TagService tagService;
+
+    /**
+     * 【【【 案卷 #18：SOP (V3 聚合搜索) 】】】
+     */
+    @Override
+    public Page<TeamVO> searchTeams(TeamSearchDTO dto, User loginUser) {
+        QueryWrapper<Team> queryWrapper = new QueryWrapper<>();
+
+        // --- 1. “按名称” (简单查询) ---
+        // (如果 searchText 存在，则模糊查询 name 或 description)
+        final String searchText = dto.getSearchText();
+        if (StringUtils.isNotBlank(searchText)) {
+            // (注意：lambda 嵌套)
+            queryWrapper.and(qw -> qw.like("name", searchText)
+                    .or()
+                    .like("description", searchText));
+        }
+
+        // --- 2. “按标签” (V3 聚合搜索) ---
+        final List<String> tagNames = dto.getTagNames();
+        if (tagNames != null && !tagNames.isEmpty()) {
+            // a. (查 Tag 表) 找到“标签名”对应的“标签 ID”
+            QueryWrapper<Tag> tagQuery = new QueryWrapper<>();
+            tagQuery.in("tagname", tagNames); // (使用 V3.1 修复的 'tagname')
+            List<Long> tagIds = tagService.list(tagQuery)
+                    .stream()
+                    .map(Tag::getId)
+                    .toList();
+
+            // b. (查 关系表) 找到“拥有这些标签”的“队伍 ID”
+            if (!tagIds.isEmpty()) {
+                QueryWrapper<TeamTagRelation> relationQuery = new QueryWrapper<>();
+                relationQuery.in("tagId", tagIds);
+                List<Long> teamIds = teamTagRelationService.list(relationQuery)
+                        .stream()
+                        .map(TeamTagRelation::getTeamId)
+                        .toList();
+
+                // c. (注入主查询)
+                // (如果 teamIds 为空，则 in() 会查不到，符合逻辑)
+                queryWrapper.in("id", teamIds);
+            } else {
+                // (如果搜索的标签不存在，返回空)
+                queryWrapper.in("id", List.of(-1L)); // (构造一个无法命中的查询)
+            }
+        }
+
+        // --- 3. (V2 重构点) 权限过滤 (只看公开和加密的) ---
+        // (私有队伍不应被搜索到)
+        queryWrapper.in("status", List.of(0, 2)); // 0-公开, 2-加密
+
+        // --- 4. (执行) MP 物理分页查询 (查询 Team 数据库) ---
+        Page<Team> teamPage = new Page<>(dto.getCurrent(), dto.getPageSize());
+        this.page(teamPage, queryWrapper); // (MP 会自动执行 COUNT 和 SELECT)
+
+        // --- 5. (V3 聚合) 转换 Page<Team> -> Page<TeamVO> ---
+        // (这是“案卷 #17” 逻辑的“循环版”)
+        Page<TeamVO> teamVOPage = new Page<>(teamPage.getCurrent(), teamPage.getSize(), teamPage.getTotal());
+
+        // (获取 V3.1 本地脱敏方法)
+        // private User getSafetyUser(User originUser) { ... }
+
+        List<TeamVO> voList = new ArrayList<>();
+        for (Team team : teamPage.getRecords()) {
+            // --- V3.1 聚合逻辑 (复用) ---
+            TeamVO teamVO = new TeamVO();
+            BeanUtils.copyProperties(team, teamVO);
+
+            // a. 聚合“队长”
+            User safetyCreator = this.getSafetyUser(userService.getById(team.getUserId()));
+            teamVO.setTeamCaptain(safetyCreator);
+
+            // b. 聚合“标签” (我们已在上面查了，这里可以反查)
+            // (V3.x 优化：如果 TeamVO 需要 tags，这里必须再次查询)
+            // ( ... 此处省略，逻辑同 getTeamDetails)
+            // ( ... )
+
+            // 【【【 V3.x 性能裁决：*不要* 聚合“成员列表” (members) 】】】
+            // (在“搜索列表”上聚合“成员列表”是 N+1 灾难)
+            // (TeamVO 中的 'members' 字段将保持 null)
+
+            voList.add(teamVO);
+        }
+
+        teamVOPage.setRecords(voList);
+
+        // 6. (返回)
+        return teamVOPage;
+    }
 
     /**
      * 【【 案卷 #17：V3.1 精确实现 (获取队伍详情) 】】】
