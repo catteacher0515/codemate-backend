@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.toolkit.CollectionUtils; // [SOP 4] 导入
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.pingyu.codematebackend.common.ErrorCode;
 import com.pingyu.codematebackend.dto.TeamCreateDTO;
+import com.pingyu.codematebackend.dto.TeamJoinDTO;
 import com.pingyu.codematebackend.dto.TeamSearchDTO;
 import com.pingyu.codematebackend.dto.TeamVO;
 import com.pingyu.codematebackend.exception.BusinessException;
@@ -18,6 +19,8 @@ import com.pingyu.codematebackend.service.*;
 import com.pingyu.codematebackend.mapper.TeamMapper;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List; // [SOP 4] 导入
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.commons.lang3.StringUtils;
@@ -48,6 +52,101 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
 
     @Resource
     private TagService tagService;
+
+    @Resource
+    private RedissonClient redissonClient;
+
+    @Override
+    // (SOP 2 - 挑战B: 声明式事务)
+    @Transactional(rollbackFor = Exception.class)
+    public boolean joinTeam(TeamJoinDTO teamJoinDTO, User loginUser) {
+
+        if (teamJoinDTO == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        Long teamId = teamJoinDTO.getTeamId();
+        if (teamId == null || teamId <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+
+        // --- 1. (SOP 1 - 404) 队伍是否存在 ---
+        Team team = this.getById(teamId);
+        if (team == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "队伍不存在");
+        }
+
+        // --- 2. (SOP 1 - 403) 密码校验 ---
+        // (SOP 2 - 约束B: 查库之后再校验)
+        Integer status = team.getStatus();
+        if (status == 2) { // 2-加密
+            String password = teamJoinDTO.getPassword();
+            if (StringUtils.isBlank(password) || !password.equals(team.getPassword())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN, "密码错误");
+            }
+        }
+
+        // --- 3. (SOP 1 - 403) 业务逻辑校验 (公开/私有) ---
+        if (status == 1) { // 1-私有
+            throw new BusinessException(ErrorCode.FORBIDDEN, "禁止加入私有队伍");
+        }
+
+        // --- 4. (SOP 2 - 挑战A: Redisson 锁) ---
+        // (我们必须“锁”住“检查+写入”的原子性操作)
+        Long userId = loginUser.getId();
+        // (SOP 4 教训：锁的粒度要细，只锁“哪个队伍”)
+        RLock lock = redissonClient.getLock("codemate:join_team:" + teamId);
+
+        try {
+            // (尝试 10 秒内获取锁，获取后 5 秒自动释放)
+            if (lock.tryLock(10, 5, TimeUnit.SECONDS)) {
+
+                // --- 5. (在锁内部) 执行“原子性”校验 (SOP 1 - 挑战 2 & 3) ---
+
+                // (挑战3: 队伍已满)
+                QueryWrapper<UserTeamRelation> countQw = new QueryWrapper<>();
+                countQw.eq("teamId", teamId);
+                long currentMembers = userTeamRelationService.count(countQw);
+                if (currentMembers >= team.getMaxNum()) {
+                    throw new BusinessException(ErrorCode.FORBIDDEN, "队伍已满");
+                }
+
+                // (挑战2: 重复加入)
+                // (V4.x 优化：我们复用 countQw)
+                countQw.eq("userId", userId);
+                long userInTeamCount = userTeamRelationService.count(countQw);
+                if (userInTeamCount > 0) {
+                    throw new BusinessException(ErrorCode.FORBIDDEN, "您已在该队伍中");
+                }
+
+                // --- 6. (在锁内部) 执行“事务性”写入 (SOP 1 - 挑战5) ---
+                // (SOP 4 教训：此处无需更新 team 表，因为人数是 count 出来的)
+                UserTeamRelation userTeamRelation = new UserTeamRelation();
+                userTeamRelation.setUserId(userId);
+                userTeamRelation.setTeamId(teamId);
+                boolean saveResult = userTeamRelationService.save(userTeamRelation);
+
+                if (!saveResult) {
+                    throw new BusinessException(ErrorCode.SYSTEM_ERROR, "加入队伍失败 (db relation 失败)");
+                }
+
+                return true;
+
+            } else {
+                // (获取锁失败)
+                throw new BusinessException(ErrorCode.SYSTEM_ERROR, "操作频繁，请稍后重试");
+            }
+
+        } catch (InterruptedException e) {
+            // (锁中断异常)
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "系统繁忙，请稍后重试");
+        } finally {
+            // (SOP 4 教训：必须在 finally 中释放锁)
+            if (lock.isHeldByCurrentThread()) {
+                lock.unlock();
+            }
+        }
+    }
 
     /**
      * 【【【 案卷 #18：SOP (V3 聚合搜索) 】】】
@@ -320,6 +419,20 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
                 teamTagRelationService.save(teamTagRelation);
                 // (因 @Transactional 存在，无需检查返回值)
             }
+        }
+
+        // 7. 插入队伍
+        team.setId(null); // (确保 id 自增)
+        if (!saveResult || newTeamId == null) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "创建队伍失败 (db save 失败)");
+        }
+
+        // 8. (V4.x 修复) 插入 user_team 关系
+        userTeamRelation.setUserId(loginUser.getId());
+        userTeamRelation.setTeamId(newTeamId);
+        boolean relationResult = userTeamRelationService.save(userTeamRelation);
+        if (!relationResult) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "创建队伍失败 (db relation 失败)");
         }
 
         // 【【 SOP 6 (返回) 】】

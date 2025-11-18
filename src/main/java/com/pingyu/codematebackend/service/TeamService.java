@@ -1,6 +1,7 @@
 package com.pingyu.codematebackend.service;
 
 import com.pingyu.codematebackend.dto.TeamCreateDTO;
+import com.pingyu.codematebackend.dto.TeamJoinDTO;
 import com.pingyu.codematebackend.dto.TeamSearchDTO;
 import com.pingyu.codematebackend.dto.TeamVO;
 import com.pingyu.codematebackend.model.Team;
@@ -35,4 +36,14 @@ public interface TeamService extends IService<Team> {
      * @return 聚合后的 TeamVO 分页
      */
     Page<TeamVO> searchTeams(TeamSearchDTO teamSearchDTO, User loginUser);
+
+    /**
+     * 【【【 案卷 #004：SOP (加入队伍) 】】】
+     * (SOP 1 契约)
+     *
+     * @param teamJoinDTO 包含 teamId 和 (可选的) password
+     * @param loginUser   当前登录用户
+     * @return boolean (是否加入成功)
+     */
+    boolean joinTeam(TeamJoinDTO teamJoinDTO, User loginUser);
 }

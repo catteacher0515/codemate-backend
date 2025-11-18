@@ -4,6 +4,7 @@ package com.pingyu.codematebackend.controller;
 import com.pingyu.codematebackend.common.BaseResponse;
 import com.pingyu.codematebackend.common.ErrorCode;
 import com.pingyu.codematebackend.dto.TeamCreateDTO;
+import com.pingyu.codematebackend.dto.TeamJoinDTO;
 import com.pingyu.codematebackend.dto.TeamSearchDTO;
 import com.pingyu.codematebackend.dto.TeamVO;
 import com.pingyu.codematebackend.exception.BusinessException; // <-- [修复] 导入异常
@@ -27,6 +28,36 @@ public class TeamController {
     // 【【 1. 注入“经理” 】】
     @Resource
     private TeamService teamService;
+
+    /**
+     * 【【【 案卷 #004：SOP (加入队伍) 】】】
+     * (SOP 1 契约: POST /api/team/join)
+     */
+    @PostMapping("/join")
+    @Operation(summary = "加入队伍")
+    public BaseResponse<Boolean> joinTeam(
+
+            // 1. (接收) 封装的“加入合约”
+            @RequestBody TeamJoinDTO teamJoinDTO,
+            HttpSession session
+    ) {
+        // 2. (校验)
+        if (teamJoinDTO == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        User loginUser = (User) session.getAttribute("loginUser");
+        if (loginUser == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGGED_IN);
+        }
+
+        // 3. (委托) 呼叫“经理”(Service)
+        // (我们将在 ServiceImpl 中实现所有 SOP 1 和 SOP 2 的决策)
+        boolean result = teamService.joinTeam(teamJoinDTO, loginUser);
+
+        // 4. (返回)
+        return BaseResponse.success(result);
+    }
+
 
     /**
      * 【【【 案卷 #18：SOP (搜索/分页) 】】】

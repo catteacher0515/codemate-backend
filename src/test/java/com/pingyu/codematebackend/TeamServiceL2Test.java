@@ -1,6 +1,7 @@
 package com.pingyu.codematebackend;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.pingyu.codematebackend.dto.TeamJoinDTO;
 import com.pingyu.codematebackend.dto.TeamSearchDTO;
 import com.pingyu.codematebackend.dto.TeamVO;
 import com.pingyu.codematebackend.model.User;
@@ -104,5 +105,50 @@ public class TeamServiceL2Test {
         assert(teamPage.getRecords() != null);
 
         System.out.println("--- [L2 调试] searchTeams 测试完毕 ---");
+    }
+
+    @Test
+    void testJoinTeam_L2_Debug() {
+        // --- 1. 准备 (Arrange) ---
+
+        // 【【【 1a. 伪造“登录用户” 】】】
+        // (*** 侦探：确保 99L (或你选择的ID) 是一个“真实存在”于 DB 的用户 ***)
+        // (*** 且该用户 *未* 加入 "teamIdToTest" ***)
+        User fakeLoginUser = new User();
+        fakeLoginUser.setId(99L); // (例如：使用一个“测试员”账户 ID)
+
+        // 【【【 1b. 准备“加入合约” (DTO) 】】】
+        TeamJoinDTO dto = new TeamJoinDTO();
+
+        // (*** 侦探：在这里修改你的“测试目标” ***)
+
+        // (场景 A: 测试加入“公开”队伍)
+        dto.setTeamId(1L); // (*** 确保 ID=1 的队伍存在, 且 status=0 (公开) ***)
+        // dto.setPassword(null); // (公开队伍，无需密码)
+
+        // (场景 B: 测试加入“加密”队伍 - 成功)
+        // dto.setTeamId(2L); // (*** 确保 ID=2 的队伍存在, status=2 (加密) ***)
+        // dto.setPassword("123456"); // (*** 确保这是“正确”密码 ***)
+
+
+        // --- 2. 行动 (Act) ---
+
+        // 【【【 侦探：请在这里设置你的断点 (Breakpoint) 】】】
+        System.out.println("--- [L2 调试] 准备进入 TeamService.joinTeam ---");
+
+        boolean joinResult = teamService.joinTeam(dto, fakeLoginUser);
+
+        // --- 3. 断言 (Assert) ---
+        System.out.println("--- [L2 调试] joinTeam 已返回 ---");
+        System.out.println("--- [L2 调试] 加入结果: " + joinResult);
+
+        // (断言它 100% 成功)
+        assert(joinResult == true);
+
+        System.out.println("--- [L2 调试] joinTeam (案卷 #004) 测试完毕 ---");
+
+        // (SOP 4 教训：L2 测试 (@SpringBootTest) 默认 *会回滚* 事务！)
+        // (你（侦探）在 DB 中 *不会* 看到 99L 真的加入了 1L，)
+        // (除非你添加 @Rollback(false) 注解，但我们不推荐)
     }
 }
