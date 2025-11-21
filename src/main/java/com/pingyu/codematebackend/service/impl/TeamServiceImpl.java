@@ -55,6 +55,39 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public boolean deleteTeam(long id, User loginUser) {
+        // 1. (404 校验) 队伍是否存在
+        Team team = getById(id);
+        if (team == null) {
+            throw new BusinessException(ErrorCode.NULL_ERROR, "队伍不存在");
+        }
+
+        // 2. (403 校验) 权限校验：只有队长能解散
+        if (!team.getUserId().equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH, "无访问权限，只有队长可以解散队伍");
+        }
+
+        // 3. (数据一致性) 移除所有关联信息
+        // 必须先删除队员关系，防止出现“幽灵队员”
+        QueryWrapper<UserTeamRelation> userTeamQueryWrapper = new QueryWrapper<>();
+        userTeamQueryWrapper.eq("teamId", id);
+        boolean relationResult = userTeamRelationService.remove(userTeamQueryWrapper);
+
+        // (可选优化: 如果你想更彻底，也可以在这里删除 team_tag_relation)
+        // 但根据指令，我们优先保证 user_team_relation 的清理
+        if (!relationResult) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "删除队伍关联成员失败");
+        }
+
+        // 4. 删除队伍本身
+        return this.removeById(id);
+    }
+
+    /**
+     * 【【【 案卷 #008：V4.x 核心逻辑 (踢出队伍) 】】】
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public boolean kickMember(TeamKickDTO teamKickDTO, User loginUser) {
         // --- 1. 准备情报 ---
         Long teamId = teamKickDTO.getTeamId();

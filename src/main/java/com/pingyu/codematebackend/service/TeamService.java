@@ -79,4 +79,12 @@ public interface TeamService extends IService<Team> {
      * @return boolean
      */
     boolean kickMember(TeamKickDTO teamKickDTO, User loginUser);
+
+    /**
+     * 解散队伍
+     * @param id 队伍ID
+     * @param loginUser 当前操作人
+     * @return boolean
+     */
+    boolean deleteTeam(long id, User loginUser);
 }

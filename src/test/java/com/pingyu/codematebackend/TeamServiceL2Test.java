@@ -24,6 +24,64 @@ public class TeamServiceL2Test {
     private TeamService teamService; // (直接注入“真实”的 Service)
 
     /**
+     * 【【【 案卷 #009：L2 集成测试 (解散队伍) 】】】
+     * * 目标：测试 队长解散队伍 的逻辑
+     * * 重点：权限校验 + 级联删除 (队伍+成员) + 事务
+     */
+    @Test
+    void testDeleteTeam_L2_Debug() {
+        // --- 1. 准备 (Arrange) ---
+
+        // 【【【 侦探：请选择一个用于“献祭”的测试队伍 ID 】】】
+        // (注意：这个队伍在测试后会被真的删除！请不要用重要数据！)
+        long teamIdToDelete = 2L;
+
+        // 1.1 伪造“队长”身份
+        // (必须是该队伍真正的队长)
+        User captainUser = new User();
+        captainUser.setId(8L); // 假设队长 ID=1 (大剑)
+        captainUser.setUserRole(0);
+
+        // 1.2 (可选) 伪造一个“队员”先加入进去，验证是否会被级联删除
+        // (这一步为了验证“斩草除根”逻辑)
+        try {
+            TeamJoinDTO joinDto = new TeamJoinDTO();
+            joinDto.setTeamId(teamIdToDelete);
+            User memberUser = new User();
+            memberUser.setId(7L); // 假设队员 ID=2
+            teamService.joinTeam(joinDto, memberUser);
+            System.out.println("--- [L2 调试] 前置准备：已向队伍注入一名测试队员 ---");
+        } catch (Exception e) {
+            // 忽略已加入错误
+        }
+
+        // --- 2. 行动 (Act) ---
+        System.out.println("--- [L2 调试] 准备进入 TeamService.deleteTeam ---");
+        System.out.println("--- [L2 调试] 目标队伍ID: " + teamIdToDelete);
+
+        try {
+            // 执行解散
+            boolean result = teamService.deleteTeam(teamIdToDelete, captainUser);
+
+            // --- 3. 断言 (Assert Success) ---
+            System.out.println("--- [L2 调试] 解散结果: " + result);
+            assert(result == true);
+
+            // (可选) 二次验证：查询一下还在不在？
+            Team deletedTeam = teamService.getById(teamIdToDelete);
+            assert(deletedTeam == null);
+            System.out.println("--- [L2 调试] 验证成功：队伍已从数据库消失。");
+
+        } catch (Exception e) {
+            // --- 3. 断言 (Assert Failure) ---
+            System.out.println("--- [L2 调试] 捕获异常: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        System.out.println("--- [L2 调试] deleteTeam (案卷 #009) 测试完毕 ---");
+    }
+
+    /**
      * 【【【 案卷 #008：L2 集成测试 (踢出成员) 】】】
      * * 目标：测试 队长踢人 的逻辑
      * * 重点：权限校验 (只有队长能踢) + 目标校验 (账号 -> ID) + 事务回滚

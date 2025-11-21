@@ -28,6 +28,31 @@ public class TeamController {
     private TeamService teamService;
 
     /**
+     * 【案卷 #009】解散队伍
+     * POST /api/team/delete
+     */
+    @PostMapping("/delete")
+    @Operation(summary = "解散队伍")
+    public BaseResponse<Boolean> deleteTeam(@RequestBody TeamDeleteDTO teamDeleteDTO, HttpSession session) {
+        if (teamDeleteDTO == null || teamDeleteDTO.getId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 1. 获取当前登录用户
+        User loginUser = (User) session.getAttribute("loginUser");
+        if (loginUser == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGGED_IN);
+        }
+
+        // 2. 执行解散逻辑
+        boolean result = teamService.deleteTeam(teamDeleteDTO.getId(), loginUser);
+
+        if (!result) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "解散失败");
+        }
+        return BaseResponse.success(true);
+    }
+
+    /**
      * 【案卷 #008】踢出成员
      * POST /api/team/kick
      */
