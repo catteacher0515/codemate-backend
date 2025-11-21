@@ -87,4 +87,13 @@ public interface TeamService extends IService<Team> {
      * @return boolean
      */
     boolean deleteTeam(long id, User loginUser);
+
+    /**
+     * 【案卷 #010】转让队长
+     *
+     * @param teamTransferDTO 转让参数
+     * @param loginUser       当前登录用户 (必须是原队长)
+     * @return boolean
+     */
+    boolean transferCaptain(TeamTransferDTO teamTransferDTO, User loginUser);
 }

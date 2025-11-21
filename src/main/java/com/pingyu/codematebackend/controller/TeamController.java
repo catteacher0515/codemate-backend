@@ -28,6 +28,29 @@ public class TeamController {
     private TeamService teamService;
 
     /**
+     * 【案卷 #010】转让队长
+     * (SOP 1 契约: POST /api/team/transfer)
+     */
+    @PostMapping("/transfer")
+    @Operation(summary = "转让队长")
+    public BaseResponse<Boolean> transferCaptain(@RequestBody TeamTransferDTO teamTransferDTO, HttpSession session) {
+        if (teamTransferDTO == null || teamTransferDTO.getTeamId() <= 0 || teamTransferDTO.getNewCaptainId() <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        // 1. 获取当前登录用户 (原队长)
+        User loginUser = (User) session.getAttribute("loginUser");
+        if (loginUser == null) {
+            throw new BusinessException(ErrorCode.NOT_LOGGED_IN);
+        }
+        // 2. 执行转让
+        boolean result = teamService.transferCaptain(teamTransferDTO, loginUser);
+        if (!result) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "转让失败");
+        }
+        return BaseResponse.success(true);
+    }
+
+    /**
      * 【案卷 #009】解散队伍
      * POST /api/team/delete
      */

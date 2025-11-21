@@ -53,6 +53,57 @@ public class TeamServiceImpl extends ServiceImpl<TeamMapper, Team>
     @Resource
     private RedissonClient redissonClient;
 
+    /**
+     * 【案卷 #010: V4.x 核心逻辑 (转让队长)】
+     * (SOP 2 策略: 仅更新 Team 表，事务保障)
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean transferCaptain(TeamTransferDTO teamTransferDTO, User loginUser) {
+        // 1. 准备情报
+        Long teamId = teamTransferDTO.getTeamId();
+        Long newCaptainId = teamTransferDTO.getNewCaptainId();
+
+        // 2. (404) 校验队伍是否存在
+        Team team = this.getById(teamId);
+        if (team == null) {
+            throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "队伍不存在");
+        }
+
+        // 3. (403) 权限校验: 只有队长能转让 (SOP 1 挑战1)
+        if (!team.getUserId().equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH, "无权操作，只有队长可以转让队伍");
+        }
+
+        // 4. (400) 边界校验: 不能转让给自己
+        if (team.getUserId().equals(newCaptainId)) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "不能转让给自己，请选择其他队员");
+        }
+
+        // 5. (400/403) 资格校验: 新队长必须是该队伍的成员 (SOP 2 约束B)
+        QueryWrapper<UserTeamRelation> queryWrapper = new QueryWrapper<>();
+        queryWrapper.eq("teamId", teamId);
+        queryWrapper.eq("userId", newCaptainId);
+        long count = userTeamRelationService.count(queryWrapper);
+        if (count <= 0) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "该用户未加入本队伍，无法成为队长");
+        }
+
+        // 6. (执行) 更新队伍的队长ID (SOP 2 决策: 方案A)
+        Team updateTeam = new Team();
+        updateTeam.setId(teamId);
+        updateTeam.setUserId(newCaptainId);
+
+        boolean result = this.updateById(updateTeam);
+        if (!result) {
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "转让失败");
+        }
+
+        return true;
+    }
+    /**
+     * 【【【 案卷 #009：V4.x 核心逻辑 (解散队伍) 】】】
+     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean deleteTeam(long id, User loginUser) {

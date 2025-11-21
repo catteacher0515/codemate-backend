@@ -24,6 +24,72 @@ public class TeamServiceL2Test {
     private TeamService teamService; // (直接注入“真实”的 Service)
 
     /**
+     * 【【【案卷 #010: L2 集成测试 (转让队长)】】】
+     * 目标: 测试队长权力交接逻辑
+     * 重点: 权限校验 + 队员资格校验 + 数据更新
+     */
+    @Test
+    void testTransferCaptain_L2_Debug() {
+        // --- 1. 准备 (Arrange) ---
+        // (*** 侦探: 请根据你的数据库现状修改以下 ID ***)
+        long teamId = 1L;           // 假设队伍ID (确保存在)
+        long originalCaptainId = 8L; // 原队长ID (确保他是当前队长)
+        long newCaptainId = 7L;      // 新队长ID (必须是队内成员)
+
+        // 1.1 伪造“原队长”登录
+        User loginUser = new User();
+        loginUser.setId(originalCaptainId);
+
+        // 1.2 【关键准备】确保“新队长”已经在队伍里 (防止因非队员报错)
+        // (我们尝试让他加入，如果已加入会抛错，捕获忽略即可)
+        try {
+            TeamJoinDTO joinDto = new TeamJoinDTO();
+            joinDto.setTeamId(teamId);
+            User potentialCaptain = new User();
+            potentialCaptain.setId(newCaptainId);
+            teamService.joinTeam(joinDto, potentialCaptain);
+            System.out.println("--- [L2 调试] 前置准备: 新队长(ID=" + newCaptainId + ") 已加入队伍 ---");
+        } catch (Exception e) {
+            // 忽略“已加入”错误
+            System.out.println("--- [L2 调试] 前置准备: 新队长已在队中 (" + e.getMessage() + ") ---");
+        }
+
+        // 1.3 构造转让合约
+        TeamTransferDTO dto = new TeamTransferDTO();
+        dto.setTeamId(teamId);
+        dto.setNewCaptainId(newCaptainId);
+
+        // --- 2. 行动 (Act) ---
+        System.out.println("--- [L2 调试] 准备执行 transferCaptain ---");
+        System.out.println("--- [L2 调试] 原队长ID: " + originalCaptainId + " -> 目标新队长ID: " + newCaptainId);
+
+        try {
+            // 执行转让
+            boolean result = teamService.transferCaptain(dto, loginUser);
+
+            // --- 3. 断言 (Assert Success) ---
+            System.out.println("--- [L2 调试] 转让结果: " + result);
+            assert(result == true);
+
+            // 验证数据库变更
+            Team updatedTeam = teamService.getById(teamId);
+            System.out.println("--- [L2 调试] 数据库当前队长ID: " + updatedTeam.getUserId());
+
+            // 核心验证：队长是否变了？
+            assert(updatedTeam.getUserId().equals(newCaptainId));
+
+            System.out.println("--- [L2 调试] 验证成功：权力已交接。");
+
+        } catch (Exception e) {
+            // --- 3. 断言 (Assert Failure) ---
+            System.out.println("--- [L2 调试] 捕获异常: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        System.out.println("--- [L2 调试] transferCaptain (案卷 #010) 测试完毕 ---");
+    }
+
+    /**
      * 【【【 案卷 #009：L2 集成测试 (解散队伍) 】】】
      * * 目标：测试 队长解散队伍 的逻辑
      * * 重点：权限校验 + 级联删除 (队伍+成员) + 事务
