@@ -24,6 +24,8 @@ spring:
 
   flyway: # Flyway 配置
     baseline-on-migrate: true # 允许在已有表上初始化
+    configuration:
+      map-underscore-to-camel-case: true # 确保这一行是 true
 
 mybatis-plus:
   # 告诉 Mybatis-Plus 去哪里找 XML 文件
